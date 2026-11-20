@@ -73,7 +73,7 @@ import { transaction } from '../src/server/transaction.ts';
 import { registerLocalAccess } from '../src/server/access.ts';
 import { createIntegrations, initializeIntegrationSchema } from '../src/server/integrations.ts';
 import { cachedIcons } from '../src/server/link-previews.ts';
-import { createErrorRedactor } from '../src/server/redaction.ts';
+import { createErrorRedactor, environmentSecrets } from '../src/server/redaction.ts';
 import { createFeedbackRedactor } from '../src/server/feedback-redaction.ts';
 import { createLedger } from '../src/server/ledger.ts';
 import { createActivityLog } from '../src/server/activity-log.ts';
@@ -577,7 +577,7 @@ test(
                     ]),
                   )
                 : { token: 'synthetic-private-api-token' };
-            const secrets = Object.values(values);
+            const secrets = environmentSecrets(values);
             let failure: 'permission' | 'rate' | 'invalid-json' | undefined;
             let calls = 0;
             const transport = createDiscoveredTransport(
@@ -11554,6 +11554,47 @@ test(
         new AbortController().signal,
       );
       assert.deepEqual(environments.at(-1), { FIXTURE_TOKEN: 'synthetic-tool-token' });
+      const identified = await discovered.propose({
+        service: 'fixture-identified',
+        name: 'Fixture identified',
+        paths: [{ ...cli, env: ['FIXTURE_ACCOUNT_ID', 'FIXTURE_TOKEN'] }],
+      });
+      const identifiedId = new URL(identified.url, 'http://localhost:4310').searchParams.get(
+        'connect',
+      );
+      assert.equal(
+        (
+          await app.inject({
+            method: 'POST',
+            url: `/api/apps/discovery/${identifiedId}/complete`,
+            payload: {
+              token: { FIXTURE_ACCOUNT_ID: '42', FIXTURE_TOKEN: 'synthetic-identifier-token' },
+              accountName: 'Identified',
+            },
+          })
+        ).statusCode,
+        200,
+      );
+      const identifiedRow = await pool.query<{ id: string; paths: Array<{ id: string }> }>(
+        "SELECT id,paths FROM discovered_connections WHERE owner_id=$1 AND service='fixture-identified'",
+        [owner],
+      );
+      const identifiedResult = await discovered.execute(
+        'CONNECTED_CLI',
+        {
+          connectionId: identifiedRow.rows[0].id,
+          pathId: identifiedRow.rows[0].paths[0].id,
+          argv: ['whoami'],
+        },
+        { threadId: randomUUID(), turnId: randomUUID() },
+        new AbortController().signal,
+      );
+      assert.deepEqual(environments.at(-1), {
+        FIXTURE_ACCOUNT_ID: '42',
+        FIXTURE_TOKEN: 'synthetic-identifier-token',
+      });
+      assert.equal(JSON.stringify(identifiedResult).includes('42'), true);
+      assert.equal(JSON.stringify(identifiedResult).includes('synthetic-identifier-token'), false);
     } finally {
       await app.close();
       await pool.end();
