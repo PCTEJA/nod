@@ -906,9 +906,7 @@ async function initializeApplication(
   adapters.models?.setRequestBudget?.(ledger.reserve);
   const { computer, workspace } = adapters;
   const curator = ledger.curator(memoryCurator);
-  const recall = ledger.curator(
-    adapters.recallCurator ?? createPiMemoryCurator({ provider: adapters.model.provider }),
-  );
+  const recall = ledger.curator(adapters.recallCurator ?? memoryCurator);
   const taskClassification = createTaskClassification({
     pool,
     ownerId,
