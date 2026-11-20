@@ -3381,7 +3381,10 @@ test(
               id: 'fixture',
               configured: true,
               async curate({ input }, signal) {
-                if ('mode' in input) return { paths: [path], messages: [] };
+                if ('mode' in input) {
+                  await delay(10_000, undefined, { signal });
+                  return { paths: [path], messages: [] };
+                }
                 await delay(10_000, undefined, { signal });
                 return {
                   mode: explicit ? 'recall' : 'none',
@@ -3403,7 +3406,7 @@ test(
               emit({ type: 'final', text: 'Synthetic answer.' });
             },
             {
-              prompt: explicit ? 'What light do I prefer?' : 'what can you help me with?',
+              prompt: explicit ? 'What light do I prefer?' : 'Tell me about amber light.',
               history: [{ role: 'user', text: 'I prefer amber light.' }],
               emit: async (type) => {
                 if (type === 'agent_start') agentStartedAt = performance.now();
