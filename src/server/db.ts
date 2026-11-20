@@ -106,6 +106,7 @@ export async function initializeDatabase() {
     ALTER TABLE turn_events ADD COLUMN IF NOT EXISTS parent_run_id uuid;
     ALTER TABLE turn_events ADD COLUMN IF NOT EXISTS session_id uuid;
     ALTER TABLE turn_events ADD COLUMN IF NOT EXISTS browser_id text;
+    ALTER TABLE turn_events ADD COLUMN IF NOT EXISTS detail text;
     ALTER TABLE turn_events ADD COLUMN IF NOT EXISTS call_id uuid;
     ALTER TABLE turn_events ADD COLUMN IF NOT EXISTS site text;
     ALTER TABLE turn_events ADD COLUMN IF NOT EXISTS command jsonb;

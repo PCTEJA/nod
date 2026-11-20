@@ -300,7 +300,7 @@ export interface MessageWork {
   onOpen?(): void;
 }
 
-function WorkLabel({ work }: { work: MessageWork }) {
+export function WorkLabel({ work }: { work: MessageWork }) {
   const content = (
     <>
       {work.status !== 'idle' && <span className="message-work-dot" aria-hidden="true" />}

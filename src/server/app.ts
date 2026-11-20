@@ -77,8 +77,21 @@ const messageFields = `m.id,m.role,m.text,CASE WHEN m.role='user' THEN m.display
    THEN (SELECT COALESCE(
      (SELECT json_build_object('kind','task','id',k.id,'title',k.title) FROM tasks k WHERE k.owner_id=m.owner_id AND k.session_id=w.session_id ORDER BY k.created_at DESC LIMIT 1),
      (SELECT json_build_object('kind','schedule','id',r.id,'title',r.title) FROM schedule_runs r WHERE r.owner_id=m.owner_id AND r.turn_id=w.session_id LIMIT 1))
-     FROM turns w WHERE w.id=m.turn_id AND w.owner_id=m.owner_id) END AS "work",
- CASE WHEN target.id IS NULL OR ${reactionReplySql('target')} THEN NULL ELSE json_build_object('id',target.id,'role',target.role,'text',COALESCE(m.reply_quote,''),'isQuote',m.reply_quote IS NOT NULL) END AS "replyTo"`;
+     FROM turns w WHERE w.id=m.turn_id AND w.owner_id=m.owner_id)
+   WHEN m.role='user' THEN (SELECT json_build_object('kind','task','id',k.id,'title',k.title,'turnId',d.id) FROM turns d
+     JOIN tasks k ON k.id=d.task_id AND k.owner_id=d.owner_id
+     WHERE d.owner_id=m.owner_id AND d.message_id=m.id AND d.task_id IS NOT NULL AND d.task_revision>1
+     ORDER BY d.created_at DESC,d.id DESC LIMIT 1) END AS "work",
+ CASE WHEN target.id IS NULL OR ${reactionReplySql('target')} THEN NULL ELSE COALESCE(
+   CASE WHEN m.role='assistant' AND target.role='assistant' THEN (SELECT json_build_object('id',o.id,'role','user','text','','isQuote',false)
+     FROM tasks k JOIN messages o ON o.owner_id=k.owner_id AND o.role='user' AND o.hidden_at IS NULL AND o.id=COALESCE(
+       (SELECT d.message_id FROM turns d WHERE d.owner_id=k.owner_id AND d.task_id=k.id AND d.task_revision>1
+         AND d.message_id IS NOT NULL AND COALESCE(d.started_at,d.finished_at)<=m.created_at
+         AND NOT starts_with(COALESCE(d.source_id,''),'reaction-reply:')
+         ORDER BY COALESCE(d.started_at,d.finished_at) DESC,d.id DESC LIMIT 1),
+       k.source_message_id)
+     WHERE k.owner_id=m.owner_id AND k.message_id=target.id LIMIT 1) END,
+   json_build_object('id',target.id,'role',target.role,'text',COALESCE(m.reply_quote,''),'isQuote',m.reply_quote IS NOT NULL)) END AS "replyTo"`;
 const chatMessageSql = `NOT ${reactionReplySql('m')}`;
 const textMessageOptions = {
   bodyLimit: 8 * 1024 * 1024,

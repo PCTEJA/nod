@@ -139,6 +139,27 @@ const delimitedTools = new Set([
   'source_check',
   'codemode',
 ]);
+function webTarget(name: string, params: unknown, redact: (text: string) => string) {
+  const input = (params ?? {}) as Record<string, unknown>;
+  const first = (one: unknown, many: unknown) =>
+    [one, ...(Array.isArray(many) ? many : [])].find(
+      (value): value is string => typeof value === 'string' && value.trim() !== '',
+    );
+  if (name === 'web_search') {
+    const query = first(input.query, input.queries);
+    if (!query) return {};
+    const text = redact(query.replace(/(^|\s)-?(?:[a-z]+:|site\.)\S+/gi, ' ').replace(/["“”]/g, ''))
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!text) return {};
+    return { detail: text.length > 40 ? `${text.slice(0, 39).trimEnd()}…` : text };
+  }
+  if (name !== 'fetch_content') return {};
+  const url = first(input.url, input.urls);
+  if (!url || !URL.canParse(url)) return {};
+  return { site: new URL(url).hostname.replace(/^www\./, '') };
+}
+
 function textResult(value: unknown): AgentToolResult {
   return {
     content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }],
@@ -520,14 +541,16 @@ export function createAgentRuntime(dependencies: {
             ? redactCommand(commandLine).slice(0, 4000)
             : undefined;
         const event = (record?: WorkspaceCommandRecord) => {
+          const web = webTarget(name, params, dependencies.redactError ?? String);
           const site =
             browserTools.has(name) && sites.has(source.browserId)
               ? sites.get(source.browserId)
-              : appName(name, params);
+              : (appName(name, params) ?? web.site);
           return {
             execution: source,
             callId: id,
             ...(site ? { site } : {}),
+            ...(web.detail ? { detail: web.detail } : {}),
             ...(record && command !== undefined ? { command: record } : {}),
           };
         };

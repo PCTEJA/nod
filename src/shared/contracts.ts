@@ -40,7 +40,7 @@ export interface Message {
   choiceAnswer?: { choiceIds: string[]; text?: string };
   approval?: MessageApproval;
   cardAnswer?: true;
-  work?: { kind: 'task' | 'schedule'; id: string; title: string };
+  work?: { kind: 'task' | 'schedule'; id: string; title: string; turnId?: string };
 }
 export type ApprovalState = 'pending' | 'working' | 'done' | 'declined' | 'expired' | 'uncertain';
 export interface MessageApproval {

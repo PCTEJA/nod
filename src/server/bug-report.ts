@@ -328,6 +328,7 @@ export async function buildFeedbackReport(options: FeedbackReportOptions) {
           'steered',
           'step',
           'thought',
+          'intent',
           'final',
           'queued',
           'running',

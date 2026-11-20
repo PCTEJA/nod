@@ -224,7 +224,7 @@ import {
 import type { VaultActivityReason } from '../shared/contracts.ts';
 import { createTriage, getPreferences } from './triage.ts';
 import { createTasks } from './tasks.ts';
-import { createActivity } from './activity.ts';
+import { createActivity, createActivityLine } from './activity.ts';
 import {
   checkedKeyStore,
   createVault,
@@ -2556,6 +2556,21 @@ async function initializeApplication(
       },
       desktopRuntime: desktopMode,
       taskClassification: true,
+      ...(adapters.classificationCurator
+        ? {
+            activityLine: (() => {
+              const line = createActivityLine(
+                ledger.curator(adapters.classificationCurator),
+                createTextRedactor(secrets),
+              );
+              return (
+                turnId: string,
+                input: { text: string; question?: string },
+                signal: AbortSignal,
+              ) => ledger.withTurn(turnId, () => line(input, signal));
+            })(),
+          }
+        : {}),
       observeTurn: (turnId, operation, sessionId) => {
         const observe = (ids?: { thread_id: string; turn_id: string }) =>
           analytics
