@@ -92,7 +92,6 @@ export function createMemoryRecall(options: {
       });
     if (!notes.length && !recent.length && !context.relatedConversation?.length) return;
     const fallback = await options.memory.find({ query: context.prompt });
-    const selectionDeadline = AbortSignal.timeout(1_000);
     const parsed = planSchema.safeParse(
       options.curator.configured && canContinue()
         ? await ask(
@@ -105,7 +104,7 @@ export function createMemoryRecall(options: {
               notes: notes.map(({ path, text, status, fact }) => ({ path, text, status, fact })),
             },
             signal,
-            selectionDeadline,
+            AbortSignal.timeout(1_000),
           )
         : undefined,
     );
@@ -171,7 +170,7 @@ export function createMemoryRecall(options: {
             rankInstructions,
             { request, mode: plan.mode, notes: facts, messages: candidates },
             signal,
-            selectionDeadline,
+            AbortSignal.timeout(1_000),
           )
         : undefined,
     );

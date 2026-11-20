@@ -44,7 +44,7 @@ export const agentModels: Partial<Record<ModelProvider, string>> = {
 export const memoryModels: Partial<Record<ModelProvider, string>> = {
   openai: 'gpt-6-luna',
   anthropic: 'claude-haiku-5-5',
-  openrouter: 'openai/gpt-6-luna',
+  openrouter: 'minimax/minimax-m3.1-flash',
   google: 'gemini-3.8-flash',
   'google-vertex': 'gemini-3.8-flash',
   mistral: 'mistral-small-latest',
