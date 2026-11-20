@@ -4882,13 +4882,17 @@ describe('model connections', { skip: !process.env.TEST_DATABASE_URL }, () => {
     });
     const connectionId = await owner.addKey('openrouter', 'fixture-recall-model-key');
     await owner.select({ connectionId, modelId: 'openai/gpt-6.1-sol', effort: 'high' });
-    assert.equal((await owner.resolveRecall()).definition.choice.id, 'minimax/minimax-m3.1-flash');
+    const recallAccess = await owner.resolveRecall();
+    assert.equal(recallAccess.definition.choice.id, 'minimax/minimax-m3.1-flash');
+    assert.ok(['off', 'low', 'medium'].includes(recallAccess.effort));
     assert.equal((await owner.resolve(true)).definition.choice.id, 'openai/gpt-6-luna');
     assert.equal((await owner.resolveClassification())?.definition.choice.id, 'openai/gpt-6-luna');
     assert.equal(owner.view().light?.modelId, 'openai/gpt-6-luna');
     recallAvailable = false;
     await owner.refreshCatalog(connectionId);
-    assert.equal((await owner.resolveRecall()).definition.choice.id, 'openai/gpt-6.1-sol');
+    const fallbackAccess = await owner.resolveRecall();
+    assert.equal(fallbackAccess.definition.choice.id, 'openai/gpt-6.1-sol');
+    assert.ok(['off', 'low', 'medium'].includes(fallbackAccess.effort));
     assert.equal((await owner.resolveClassification())?.definition.choice.id, 'openai/gpt-6-luna');
   });
 
