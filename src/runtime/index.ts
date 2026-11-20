@@ -26,6 +26,7 @@ import {
   appConfirmation,
   ContextLimitError,
   ModelRequestError,
+  OutputLimitError,
   ToolFailureError,
 } from '../ports/agent.ts';
 import type { Computer, Workspace } from '../ports/computer.ts';
@@ -801,27 +802,7 @@ export function createAgentRuntime(dependencies: {
                   (typeof input.timeout !== 'number' || !Number.isFinite(input.timeout)))
               )
                 throw new Error('The workspace command or timeout is invalid.');
-              if (!context.checkWorkspaceCommand)
-                throw new Error(
-                  'Workspace command checks are unavailable. The command did not run.',
-                );
-              const checked = await context.checkWorkspaceCommand(
-                {
-                  command: input.command,
-                  cwd,
-                  timeoutSeconds: Math.max(
-                    1,
-                    Math.ceil((input.timeout as number | undefined) ?? 3540),
-                  ),
-                },
-                signal,
-              );
-              assertActive();
-              const operation = checked.signal ? AbortSignal.any([signal, checked.signal]) : signal;
-              operation.throwIfAborted();
-              const result = await untilAborted(run(operation), operation);
-              await checked.record();
-              return result;
+              return untilAborted(run(signal), signal);
             },
             { ...options, execution: source },
           );
@@ -1377,7 +1358,9 @@ export function createAgentRuntime(dependencies: {
           `The model response was cut off because its context is full. Choose a model with a larger context in ${appPages['/settings/models']}.`,
         );
       if (modelIncomplete && status === 'succeeded')
-        throw new Error('The model response was incomplete. Say continue to try again.');
+        throw new OutputLimitError(
+          `The model response was cut off at its output limit. Say continue to pick up where it stopped, or choose a model with a larger output limit in ${appPages['/settings/models']}.`,
+        );
       if (stopped && status === 'succeeded') throw new Error('The turn was stopped.');
       if (status === 'succeeded' && (context.proactivity ? overBudget() : checkInStopped)) {
         status = 'waiting_user';

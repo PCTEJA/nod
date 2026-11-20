@@ -28,6 +28,7 @@ import {
 import {
   ContextLimitError,
   ModelRequestError,
+  OutputLimitError,
   ToolFailureError,
   type RuntimeContext,
   type RuntimeResult,
@@ -610,6 +611,8 @@ test(
         if (context.prompt === 'limit race fixture') throw new Error(spendingLimitReached);
         if (context.prompt === 'unexpected failure fixture')
           throw new Error('Synthetic runtime failure.');
+        if (context.prompt === 'output limit fixture')
+          throw new OutputLimitError('Synthetic output limit.');
         if (context.prompt === 'tool refusal fixture')
           throw new ToolFailureError('The bash tool failed five times. Trust refused the command.');
         if (context.prompt.startsWith('session-fixture')) {
@@ -3418,6 +3421,30 @@ test(
         assert.equal(draft.owner_id, ownerId);
         assert.equal(draft.summary, card.summary);
         assert.doesNotMatch(draft.summary, /Synthetic runtime failure/);
+      });
+
+      await t.test('a reply cut off at its output limit offers no bug report', async () => {
+        const failed = await thread.submitUserMessage('output limit fixture');
+        await waitFor(settled(failed.turnId));
+        const shown = async () =>
+          (
+            await db.pool.query(
+              "SELECT presentation FROM messages WHERE turn_id=$1 AND role='assistant' AND stream_id=$2",
+              [failed.turnId, `failure:${failed.turnId}`],
+            )
+          ).rows.map((row) => row.presentation);
+        await waitFor(async () => (await shown()).length === 1);
+        assert.equal((await shown())[0]?.type, undefined);
+        const turn = (
+          await db.pool.query('SELECT status,error,withdrawn FROM turns WHERE id=$1', [
+            failed.turnId,
+          ])
+        ).rows[0];
+        assert.deepEqual(turn, {
+          status: 'failed',
+          error: 'Synthetic output limit.',
+          withdrawn: false,
+        });
       });
 
       await t.test('an exhausted tool refusal reports the cause without a bug report', async () => {
@@ -6700,10 +6727,7 @@ test(
               const oldGrant = await createTrust({
                 pool: db.pool,
                 ownerId,
-                review: async (_instructions, input) =>
-                  Object(input).purpose === 'review_requirement'
-                    ? { review: 'clear' }
-                    : { run: true, because: prompt },
+                review: async () => ({ run: true, because: prompt }),
               }).check(
                 { threadId: creator.threadId, turnId: fresh.turnId },
                 'SYNTHETIC_SEND_REPORT',
@@ -12462,7 +12486,7 @@ test(
 );
 
 test(
-  'bug report drafts send their stored summary once and only for their owner',
+  'bug report drafts send their stored summary once, after a rejected attempt, and only for their owner',
   { skip: !process.env.TEST_DATABASE_URL, timeout: 30_000 },
   async (t) => {
     const f = await feedbackFixture(t);
@@ -12488,16 +12512,89 @@ test(
     );
     assert.equal((await other.app.inject(send)).statusCode, 404);
     assert.equal(f.state.envelopes.length, 0);
+    f.state.receiptStatus = 'rejected';
+    assert.equal((await owner.app.inject(send)).json().status, 'rejected');
+    assert.equal(
+      (await owner.app.inject({ method: 'GET', url: `/api/feedback/drafts/${id}` })).json().receipt,
+      null,
+    );
+    assert.equal(
+      (await owner.app.inject({ method: 'GET', url: `/api/feedback/${id}` })).json().status,
+      'rejected',
+    );
+    f.state.receiptStatus = 'submitted';
     assert.equal((await owner.app.inject(send)).json().status, 'submitted');
     assert.equal((await owner.app.inject(send)).json().status, 'submitted');
-    assert.equal(f.state.envelopes.length, 1);
-    assert.equal(f.state.envelopes[0]!.submissionId, id);
-    assert.equal(f.state.envelopes[0]!.feedback, 'Synthetic draft summary.');
+    assert.equal(f.state.envelopes.length, 2);
+    assert.equal(f.state.envelopes[1]!.submissionId, id);
+    assert.equal(f.state.envelopes[1]!.feedback, 'Synthetic draft summary.');
     assert.equal(
       (await owner.app.inject({ method: 'GET', url: `/api/feedback/drafts/${id}` })).json().receipt
         .status,
       'submitted',
     );
+    const uncertain = randomUUID();
+    await f.pool.query(
+      'INSERT INTO feedback_drafts(id,owner_id,thread_id,summary) VALUES($1,$2,$3,$4)',
+      [uncertain, owner.ownerId, randomUUID(), 'Synthetic uncertain summary.'],
+    );
+    const resend = { ...send, url: `/api/feedback/drafts/${uncertain}/send` };
+    f.state.receiptStatus = 'unknown';
+    assert.equal((await owner.app.inject(resend)).json().status, 'unknown');
+    f.state.receiptStatus = 'submitted';
+    assert.equal((await owner.app.inject(resend)).json().status, 'unknown');
+    assert.equal(f.state.envelopes.length, 3);
+    const claimed = randomUUID();
+    await f.pool.query(
+      'INSERT INTO feedback_drafts(id,owner_id,thread_id,summary) VALUES($1,$2,$3,$4)',
+      [claimed, owner.ownerId, randomUUID(), 'Synthetic claimed summary.'],
+    );
+    assert.equal(
+      (await owner.app.inject({ method: 'GET', url: `/api/feedback/${claimed}` })).json().status,
+      'rejected',
+    );
+    assert.equal(
+      (await owner.app.inject({ ...send, url: `/api/feedback/drafts/${claimed}/send` })).json()
+        .status,
+      'submitted',
+    );
+    assert.equal(f.state.envelopes.length, 4);
+    await f.pool.query(
+      "UPDATE feedback_submissions SET created_at=now()-interval '10 minutes' WHERE owner_id=$1 AND id=$2",
+      [owner.ownerId, uncertain],
+    );
+    const held: Array<() => void> = [];
+    let arrived = () => {};
+    const holding = (count: number) =>
+      new Promise<void>((done) => {
+        arrived = () => held.length >= count && done();
+        arrived();
+      });
+    f.state.beforeDeliver = () =>
+      held.length < 3
+        ? new Promise<void>((done) => {
+            held.push(done);
+            arrived();
+          })
+        : Promise.resolve();
+    f.state.receiptStatus = 'rejected';
+    const check = () => owner.app.inject({ method: 'GET', url: `/api/feedback/${uncertain}` });
+    const early = check();
+    await holding(1);
+    const late = check();
+    await holding(2);
+    held[0]!();
+    assert.equal((await early).json().status, 'rejected');
+    const retry = owner.app.inject(resend);
+    await holding(3);
+    held[1]!();
+    assert.equal((await late).json().status, 'unknown');
+    f.state.receiptStatus = 'submitted';
+    assert.equal((await owner.app.inject(resend)).json().status, 'unknown');
+    assert.equal(f.state.envelopes.length, 5);
+    held[2]!();
+    assert.equal((await retry).json().status, 'submitted');
+    f.state.beforeDeliver = undefined;
   },
 );
 
@@ -13891,6 +13988,136 @@ test(
   },
 );
 
+test('transaction runs afterRollback callbacks when aborted before commit', async () => {
+  const { afterCommit, afterRollback, transaction } = await import('../src/server/transaction.ts');
+  const controller = new AbortController();
+  const reason = new Error('cancelled');
+  const released: Array<boolean | undefined> = [];
+  const client = {
+    async query(_sql: string) {
+      return { rows: [] };
+    },
+    release(destroy?: boolean) {
+      released.push(destroy);
+    },
+  };
+  const database = {
+    async connect() {
+      return client;
+    },
+  } as unknown as pg.Pool;
+  let rolledBack = 0;
+  let committed = 0;
+  await assert.rejects(
+    transaction(
+      async (tx) => {
+        afterRollback(tx, () => {
+          rolledBack++;
+        });
+        afterCommit(tx, () => {
+          committed++;
+        });
+        controller.abort(reason);
+      },
+      database,
+      controller.signal,
+    ),
+    (error) => error === reason,
+  );
+  assert.equal(rolledBack, 1);
+  assert.equal(committed, 0);
+  assert.deepEqual(released, [true]);
+
+  const afterCommitController = new AbortController();
+  const releasedAfterCommit: Array<boolean | undefined> = [];
+  const commitClient = {
+    async query(_sql: string) {
+      return { rows: [] };
+    },
+    release(destroy?: boolean) {
+      releasedAfterCommit.push(destroy);
+    },
+  };
+  let postCommitRollbacks = 0;
+  await transaction(
+    async (tx) => {
+      afterRollback(tx, () => {
+        postCommitRollbacks++;
+      });
+      afterCommit(tx, () => {
+        afterCommitController.abort(reason);
+      });
+    },
+    {
+      async connect() {
+        return commitClient;
+      },
+    } as unknown as pg.Pool,
+    afterCommitController.signal,
+  );
+  assert.equal(postCommitRollbacks, 0);
+  assert.deepEqual(releasedAfterCommit, [undefined]);
+});
+
+test(
+  'a transaction stopped while its commit is pending does not run its rollback callbacks',
+  { skip: !process.env.TEST_DATABASE_URL, timeout: 30_000 },
+  async (t) => {
+    const { afterRollback, transaction } = await import('../src/server/transaction.ts');
+    const schema = `test_commit_stop_${randomUUID().replaceAll('-', '')}`;
+    const admin = new pg.Pool({ connectionString: process.env.TEST_DATABASE_URL });
+    await admin.query(`CREATE SCHEMA ${schema}`);
+    const pool = new pg.Pool({
+      connectionString: process.env.TEST_DATABASE_URL,
+      options: `-c search_path=${schema}`,
+    });
+    let pid = 0;
+    t.after(async () => {
+      await pool.end();
+      if (pid) await admin.query('SELECT pg_terminate_backend($1)', [pid]);
+      await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      await admin.end();
+    });
+    await pool.query(`
+      CREATE TABLE held(id int);
+      CREATE FUNCTION hold_commit() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN PERFORM pg_sleep(20); RETURN NULL; END $$;
+      CREATE CONSTRAINT TRIGGER hold_commit AFTER INSERT ON held
+        DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION hold_commit();
+    `);
+    const controller = new AbortController();
+    let rolledBack = 0;
+    const pending = transaction(
+      async (client) => {
+        pid = (await client.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+        await client.query('INSERT INTO held VALUES (1)');
+        afterRollback(client, () => {
+          rolledBack++;
+        });
+      },
+      pool,
+      controller.signal,
+    );
+    const rejected = assert.rejects(pending);
+    let committing = false;
+    for (const deadline = Date.now() + 10_000; !committing && Date.now() < deadline;) {
+      committing = Boolean(
+        (
+          await admin.query(
+            "SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND state='active' AND query='COMMIT'",
+            [pid],
+          )
+        ).rowCount,
+      );
+      if (!committing) await delay(10);
+    }
+    assert.ok(committing);
+    controller.abort(new Error('Synthetic Stop'));
+    await rejected;
+    assert.equal(rolledBack, 0);
+  },
+);
+
 test('a first task stays open after its chat turn ends and follows its own saved task', () => {
   const messages = [
     { id: 'old-request', role: 'user' as const, text: 'Draft the reply', turnId: 'old-turn' },
@@ -13919,6 +14146,23 @@ test('a first task stays open after its chat turn ends and follows its own saved
   assert.equal(status(), 'idle');
   state.tasks = [];
   assert.equal(status(), 'sent');
+});
+
+test('the onboarding brief masks each link and keeps the fields after it', async () => {
+  const { masked } = await import('../src/server/onboarding-suggestions.ts');
+  const event = {
+    htmlLink: 'https://calendar.example.test/event?eid=abc',
+    start: { dateTime: '2026-10-24T09:00:00Z' },
+    end: { dateTime: '2026-10-24T09:30:00Z' },
+    summary: 'Planning',
+  };
+  assert.deepEqual(JSON.parse(masked(JSON.stringify({ items: [event, event] }))), {
+    items: [event, event].map((item) => ({ ...item, htmlLink: '[link]' })),
+  });
+  const quoted = { note: 'Open https://files.example.test/a"b?token=zzz then reply', next: 'kept' };
+  const brief = masked(JSON.stringify(quoted));
+  assert.deepEqual(JSON.parse(brief), { note: 'Open [link] then reply', next: 'kept' });
+  assert.ok(!brief.includes('zzz'));
 });
 
 test(

@@ -56,6 +56,7 @@ import {
   appConfirmation,
   ContextLimitError,
   ModelRequestError,
+  OutputLimitError,
   ToolFailureError,
 } from '../ports/agent.ts';
 import { isMessageReaction, reactionEmoji } from '../shared/emoji.ts';
@@ -251,11 +252,6 @@ export interface ThreadDependencies {
     input: unknown,
     show: (image: Uint8Array) => Promise<void>,
   ) => ReturnType<NonNullable<RuntimeContext['requestPayment']>>;
-  checkWorkspaceCommand?: (
-    turn: TurnRef,
-    input: Parameters<NonNullable<RuntimeContext['checkWorkspaceCommand']>>[0],
-    signal: AbortSignal,
-  ) => ReturnType<NonNullable<RuntimeContext['checkWorkspaceCommand']>>;
   integration: (
     turn: TurnRef,
     action: string,
@@ -1531,7 +1527,7 @@ async function scheduleRunNotice(
   return presentationSchema.parse({
     version: 1,
     type: 'schedule-run',
-    title: row.title.slice(0, 120),
+    title: row.title.slice(0, 120).replace(/[\uD800-\uDBFF]$/, ''),
     sources: [],
     scheduleId: row.scheduleId,
     revision: row.revision,
@@ -2498,17 +2494,6 @@ async function executeTurn(turn: any, dependencies: ThreadDependencies) {
             ),
           }
         : {}),
-      ...(dependencies.checkWorkspaceCommand
-        ? {
-            checkWorkspaceCommand: fenced((input, callSignal) =>
-              dependencies.checkWorkspaceCommand!(
-                ref,
-                input,
-                AbortSignal.any([signal, callSignal]),
-              ),
-            ),
-          }
-        : {}),
       integration: fenced(async (action, args, callSignal?: AbortSignal, admit?) => {
         const operation = callSignal ? AbortSignal.any([signal, callSignal]) : signal;
         operation.throwIfAborted();
@@ -2788,7 +2773,7 @@ async function executeTurn(turn: any, dependencies: ThreadDependencies) {
       if (
         await failTurn(turnId, dependencies.present, text, {
           failure,
-          expected: error instanceof ToolFailureError,
+          expected: error instanceof ToolFailureError || error instanceof OutputLimitError,
           next: alternative ?? (server ? offlineHint : undefined),
           contextExhausted: error instanceof ContextLimitError,
           cause: offline

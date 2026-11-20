@@ -15,7 +15,7 @@ Nod follows your latest clear message's language, spoken or typed, including que
 
 ## Send a message
 
-Type in the message box and press Enter. Press Shift+Enter for a new line.
+Type in the message box and press Enter. Press Shift+Enter for a new line. On a phone, or a tablet without a trackpad, Return adds a new line, and the send button sends. On an iPad with a keyboard, Command+Return also sends.
 
 Pasted text stays literal by default. Nod uses the clipboard's plain text even when the source also offers formatting. Line breaks, indentation and Markdown-looking characters such as `*priority*`, `# call` and `<u>text</u>` stay as written in the composer, the sent message and Nod's request. If plain text in the same paragraph would change it, such as a `!` before a link or a `*` that pairs with italic text, the sent message adds backslashes: before that `!`, or before every `*`, `_`, `~` and backtick in the paragraph's plain text. A web or email address typed directly against formatting is sent as a link, such as `<https://example.com>`. An unsent pasted draft keeps them after a reload.
 
@@ -26,13 +26,13 @@ Web and desktop chat limit text message attempts to 120 per minute and audio mes
 Use the formatting toolbar to add underline, links, and other formatting to typed or pasted text. To link a selection within one paragraph, paste a single URL beginning with `https://` or `http://`. Code stays literal, including text that looks like a link or a code fence.
 
 - **Attach files.** Select **Attach files**, press Command+U on Mac or Ctrl+U on Windows and Linux while writing a message, paste an image or drop files anywhere in the conversation. Each file stays inside the composer while it uploads. Select it to open the same file viewer used for sent attachments, or retry or remove a failed upload. Each file can be 90 MB or smaller. Nod gets a copy in its [workspace](/use/workspace/). It sees PNG, JPEG and WebP images directly, up to 3.75 MB each and 16 MB per message, unless the model you chose can't read images.
-- **Reply to a message.** Hover over a message and select **Reply**. On touch screens or in a narrow chat, hold or right-click the bubble to open **Reply**, **React** and **Copy**. You can also focus a message and press Shift+F10. Replies show a formatted excerpt in the composer and sent reply. Select it to jump to the original message, then select **Return to where you were** to go back. To see the time inside the bottom-right corner of a bubble, hover over the message, focus one of its controls, or tap its text.
+- **Reply to a message.** Hover over a message and select **Reply**. On touch screens or in a narrow chat, hold or right-click the bubble to open **Reply**, **React** and **Copy**. You can also focus a message and press Shift+F10. Replies show a formatted excerpt in the composer and sent reply. Select it to jump to the original message, then select **Return to previous position** to go back. To see the time inside the bottom-right corner of a bubble, hover over the message, focus one of its controls, or tap its text.
 
 Your unfinished draft stays on this device for your account and conversation. After a reload, Nod restores its text, reply target, and available uploaded files. It checks saved files before you can send them. If a check fails, select **Retry** or remove the file. An interrupted upload needs the original file again. Private entry values and recognized verification replies are excluded. A file that exceeds the limit is rejected individually; other valid files stay attached. Removing an uploaded draft file offers **Undo**.
 
 Unsent files become eligible for cleanup 24 hours after upload or their last successful renewal. Existing unsent uploads get a fresh 24-hour grace period on the first upgrade that adds cleanup. Keeping the draft open renews its files every five minutes. Returning to the app or restoring a draft checks and renews them again. Removed files stop renewing. You can still renew or send a file until cleanup starts deleting it. After that, attach it again from your device. Sent attachments and files Nod publishes are kept.
 
-Select a passage in a message, then **Reply to selection** to quote it. Selected passages keep their exact text, including literal symbols, and stay separate from your own message. Select a reply quote to visit its source. **Return to where you were** restores your reading position. Copy controls on code blocks and tables copy only that block. Table content pastes into spreadsheet cells. Message Copy includes formatted text where the clipboard supports it. **Copy Markdown** copies the source text.
+Select a passage in a message, then **Reply to selection** to quote it. Selected passages keep their exact text, including literal symbols, and stay separate from your own message. Select a reply quote to visit its source. **Return to previous position** restores your reading position. Copy controls on code blocks and tables copy only that block. Table content pastes into spreadsheet cells. Message Copy includes formatted text where the clipboard supports it. **Copy Markdown** copies the source text.
 
 Select **Search chat** to search stored messages in the current conversation. Search shows up to 50 recent matches, with the sender, date and highlighted text. Use the arrow keys to move between results and Enter to open a message. Escape closes search and returns focus to the control you used before opening it. Press Command/Ctrl+K outside an editor to open pages, files, and tasks. In the desktop app, Command/Ctrl+F opens conversation search outside an editor.
 
@@ -237,11 +237,11 @@ Open the **Settings** page, then **Models** to choose the model Nod uses from yo
 
 ## Adjust the sidebar
 
-On a wide screen, select the sidebar button to hide or show the sidebar. In the desktop app it sits at the top-left of the window, beside the traffic lights on a Mac. Drag the sidebar's right edge to make it narrower or wider; drag it far to the left to hide the sidebar, and drag from the window's left edge to bring it back. Narrow screens use the navigation menu at the top.
+On a wide screen, move your pointer near the sidebar's right edge to reveal its middle button. Select it to expand or collapse the sidebar. You can also Tab to the button; on touch screens, it stays visible. Narrow screens use the navigation menu at the top.
 
 ## Desktop shortcuts
 
-In the desktop app, hold Command on a Mac or Ctrl on Windows and Linux to reveal the navigation tooltips. These are the same tooltips shown on hover. Use that key with 1–6 for Chat, Scheduled, Apps, Channels, Usage and Vault, including while the chat message box is focused; B hides or shows the sidebar, and comma opens Settings. Web browsers keep their own shortcuts.
+In the desktop app, hold Command on a Mac or Ctrl on Windows and Linux to reveal the navigation tooltips. These are the same tooltips shown on hover. Use that key with 1–6 for Chat, Scheduled, Apps, Channels, Usage and Vault, including while the chat message box is focused; B expands or collapses the sidebar, and comma opens Settings. Web browsers keep their own shortcuts.
 
 ## React to messages
 
@@ -283,7 +283,7 @@ After first-time setup, a short invitation points to **Report bug**. Dismiss it 
 
 When something in Nod itself fails, or you tell Nod that something in Nod isn't working, Nod drafts a bug report once with a short summary of what happened. In the app, the draft appears in chat as a card with the summary, **Include diagnostic report**, **Review** and **Send report**. One click on **Send report** sends it to the same recipient as the dialog. Nod skips this for errors from outside services, such as a missing connection, credits, an app outage or a website's own error, and in background checks.
 
-A request, task or schedule run that stops on an unexpected error outside the model connection ends with the same card, with a short fixed summary. The error itself goes in the diagnostic report, not the summary. A model connection failure links to **Settings > Models** instead.
+A request, task or schedule run that stops on an unexpected error outside the model connection ends with the same card, with a short fixed summary. The error itself goes in the diagnostic report, not the summary. A model connection failure links to **Settings > Models** instead. A reply the model cut off at its output limit offers no bug report either: say continue to pick up where it stopped, or choose a model with a larger output limit in **Settings > Models**.
 
 In Telegram and WhatsApp, the draft arrives as text. Reply "send" to share the summary, without a diagnostic report, since you can't review one there. To add the report, send the same draft from its card in Nod on your computer. Nod sends it only when your reply clearly asks for that, and otherwise asks you to confirm first. Nothing is sent until you click **Send report** or reply to send it.
 
