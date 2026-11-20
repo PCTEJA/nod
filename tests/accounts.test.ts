@@ -8695,6 +8695,8 @@ test('environment secret collection covers every model key and token segment bef
       'ENCRYPTION_KEY',
       'PASSPHRASE',
       'ACCESS_KEY_ID',
+      'CLIENTSECRET',
+      'CLIENTPASSWORD',
     ].map((key, index) => [`SYNTHETIC_${key}`, `synthetic-legacy-key-${index}`]),
   );
   const environment = {
