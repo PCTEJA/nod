@@ -44,7 +44,7 @@ export const agentModels: Partial<Record<ModelProvider, string>> = {
 export const memoryModels: Partial<Record<ModelProvider, string>> = {
   openai: 'gpt-6-luna',
   anthropic: 'claude-haiku-5-5',
-  openrouter: 'minimax/minimax-m3.1-flash',
+  openrouter: 'openai/gpt-6-luna',
   google: 'gemini-3.8-flash',
   'google-vertex': 'gemini-3.8-flash',
   mistral: 'mistral-small-latest',
@@ -52,6 +52,14 @@ export const memoryModels: Partial<Record<ModelProvider, string>> = {
   'vercel-ai-gateway': 'openai/gpt-6-luna',
   radius: 'cheap',
 };
+
+export const recallModels: Partial<Record<ModelProvider, string>> = {
+  openrouter: 'minimax/minimax-m3.1-flash',
+};
+
+export function recallModel(provider: ModelProvider) {
+  return recallModels[provider] ?? memoryModels[provider];
+}
 
 export function defaultModel(provider: ModelProvider, models: ModelChoice[], method?: ModelMethod) {
   if (provider === 'amazon-bedrock' && models.length > 1) return undefined;
